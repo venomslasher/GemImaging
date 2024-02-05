@@ -1,6 +1,9 @@
 from customtkinter import *
 from customtkinter import filedialog, CTkFrame
+import numpy as np
+from analysis6mzip import unzipper
 import pandas as pd
+from zipfile import ZipFile
 # import tkinter as tk
 # from tkinter import ttk
 from matplotlib.figure import Figure
@@ -9,6 +12,16 @@ import matplotlib
 
 SIZE = (1000,600)
 matplotlib.use('TkAgg')
+
+# matplotlib.rcParams.update({# Use mathtext, not LaTeX
+#                             'text.usetex': False,
+#                             # Use the Computer modern font
+#                             'font.family': 'serif',
+#                             'font.serif': 'cmr10',
+#                             'mathtext.fontset': 'cm',
+#                             # Use ASCII minus
+#                             'axes.unicode_minus': False,
+#                             })
 
 lod = True
 app = CTk()
@@ -33,7 +46,7 @@ def plotFile(data,i=0):
     ax = fig.add_subplot(111)
     ax.set_xlabel('samples')
     ax.set_ylabel('charge')
-    ax.plot(data.iloc[i,:])
+    ax.plot(data.iloc[i])
     if str(i+1).endswith('1'):
         ax.set_title(f"{i+1}st strip")
     elif str(i+1).endswith('2'):
@@ -60,22 +73,34 @@ def plotFile(data,i=0):
 
 def selectFile():
     filetypes = [
-        ('text files',('*.dat',' *.csv')),
+        ('Compressed files','*.zip'),
+        ('text files',('*.dat',' *.csv')),        
         ('All files','*.*')
 	]
     wind = filedialog.askopenfile(filetypes= filetypes)
     global data_file
     file_label.configure(text= wind.name,wraplength = 170)
-    data_file = pd.read_csv(wind.name,header=None)
     stp_num = strip_num_btn.get()
+    print(stp_num)
+    print(wind)
+    if '.zip' in wind.name:
+        data_file = unzipper(wind.name)
+    else:
+        data = wind.name
+        data_file = pd.read_csv(data,header=None)
     plotFile(data_file,i = int(stp_num))
     
 def UpdateGraph(i):
     i = strip_num_btn.get()
-    for wids in plot_frame.winfo_children():
-        wids.destroy()
-    
-    plotFile(data_file,i = int(i)-1)
+    try:
+        print(data_file)
+        for wids in plot_frame.winfo_children():
+            wids.destroy()
+        
+        plotFile(data_file,i = int(i)-1)
+    except NameError:
+         print('input file missing')
+         
 
 
 input_controls = CTkFrame(app,fg_color='red',width = SIZE[0]/3,height=SIZE[1])
