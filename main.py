@@ -8,7 +8,10 @@ from zipfile import ZipFile
 # from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import matplotlib.pyplot as plt
 import matplotlib
+from utils import to_inch
+
 
 SIZE = (1000,600)
 matplotlib.use('TkAgg')
@@ -25,7 +28,7 @@ matplotlib.use('TkAgg')
 
 lod = True
 app = CTk()
-app.resizable(width=False, height=False)
+# app.resizable(width=False, height=False)
 app.title("GEM Imaging")
 app.geometry(f'{SIZE[0]}x{SIZE[1]}')
 
@@ -41,12 +44,13 @@ def toggle_theme():
     set_appearance_mode('dark')
     return
 
-def plotFile(data,i=0):
-    fig = Figure(figsize=(9,7))
+def plotFile(data,i=0,peaks= False):
+    fig = Figure(figsize=(6.3,6))
     ax = fig.add_subplot(111)
     ax.set_xlabel('samples')
     ax.set_ylabel('charge')
-    ax.plot(data.iloc[i])
+    di =.125-data.iloc[i]
+    ax.plot(di)
     if str(i+1).endswith('1'):
         ax.set_title(f"{i+1}st strip")
     elif str(i+1).endswith('2'):
@@ -59,15 +63,19 @@ def plotFile(data,i=0):
             ax.set_title(f"{i+1}th strip")
     elif str(i+1)=='11':
             ax.set_title(f"{i+1}th strip")
+    if peaks:
+        detectpeaks(data.copy())
+        return fig
+    return fig
+
+
+def setplot(fig):
     canvas = FigureCanvasTkAgg(fig, master=plot_frame)
     canvas_widget = canvas.get_tk_widget()
-    canvas_widget.grid(row=0,column=0)
-
-    	
+    canvas_widget.grid(row=0,column=0)    	
     toolbar = NavigationToolbar2Tk(canvas, plot_frame, pack_toolbar=False)
     toolbar.update()
     toolbar.grid(row = 1,column= 0,sticky='we')
-
 
     
 
@@ -81,26 +89,44 @@ def selectFile():
     global data_file
     file_label.configure(text= wind.name,wraplength = 170)
     stp_num = strip_num_btn.get()
-    print(stp_num)
-    print(wind)
+    # print(stp_num)
+    # print(wind)
     if '.zip' in wind.name:
         data_file = unzipper(wind.name)
     else:
         data = wind.name
         data_file = pd.read_csv(data,header=None)
-    plotFile(data_file,i = int(stp_num))
+    setplot(plotFile(data_file,i = int(stp_num)))
     
 def UpdateGraph(i):
     i = strip_num_btn.get()
     try:
-        print(data_file)
+        # print(data_file)
         for wids in plot_frame.winfo_children():
             wids.destroy()
         
-        plotFile(data_file,i = int(i)-1)
+        setplot(plotFile(data_file,i = int(i)-1))
     except NameError:
-         print('input file missing')
+        print('input file missing')
          
+
+def detectpeaks():
+    data=data_file
+    print(data)
+    from scipy.signal import find_peaks
+    data_mins =.125- data.min(axis=1)
+    print(data_mins)
+    x_min = data_mins.iloc[:128]
+    y_min = data_mins.iloc[128:]    
+    xp,xh = find_peaks(x_min,height=0.075)
+    yp,yh = find_peaks(y_min,height=0.075)
+    print(xp,xh, yp, yh)
+    fig,(ax1,ax2) = plt.subplots(nrows=2, ncols=1)
+
+    ax1.plot(xp,xh['peak_heights'],linestyle = '',marker='.')
+    ax2.plot(yp,yh['peak_heights'],linestyle = '',marker='.')
+    plt.show()
+
 
 
 input_controls = CTkFrame(app,fg_color='red',width = SIZE[0]/3,height=SIZE[1])
@@ -118,6 +144,9 @@ file_label.pack(expand=True, fill='both')
 
 strip_num_btn = CTkComboBox(master=input_controls, values=[str(i) for i in range(1,257)],command=UpdateGraph)
 strip_num_btn.pack(anchor='center', expand=True, padx=10,pady= 20)#place(relx=.5, rely=0.7, anchor = 'center')
+
+peak_det_btn = CTkButton(master=input_controls, text='detect peaks',command=detectpeaks)
+peak_det_btn.pack(anchor='center', expand=True, padx=10,pady= 20)#place(relx=.5, rely=0.7, anchor = 'center')
 
 strip_num_btn.bind('<Return>',UpdateGraph)
 
