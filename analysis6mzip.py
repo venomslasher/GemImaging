@@ -6,6 +6,11 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from zipfile import ZipFile
 from io import TextIOWrapper, StringIO
+from scipy.signal import find_peaks
+
+
+MAX_CHARGE= .125
+
 
 def DataCleaner(data):
     return pd.DataFrame(data).astype('float64')
@@ -115,47 +120,62 @@ def analyser(files,cuts=.005):
                     if dy<cuts:
                         # if any(np.abs(dx-dy) < np.abs(THRESHOLD)):
                         dg[nx, ny-128]+= 1
-        time2 = time.time()
-        ttaken = time2 - time1
-        print(ttaken,'/n',fname )
     return dg
 
-def mean_analyser(files,cuts):
+
+
+
+def analyser2(files,cuts=.005):
     dg = np.zeros((128,128))
     for file in files:
+        data_mins =MAX_CHARGE- data.min(axis=1)
+        x_min = data_mins.iloc[:128]
+        y_min = data_mins.iloc[128:]   
+
+        xp,xh = find_peaks(x_min,height=0.075)
+        yp,yh = find_peaks(y_min,height=0.075)
         fname= file
         print(fname)
         data = unzipper(file)
         for nx in range(0,128):
             odx = data.iloc[nx]
-            dx = odx.to_numpy()
-            dx=np.sort(dx)[:5].mean()
-
+            dx = odx.min()#np.sort(odx.to_numpy())[:2*HALF_WIDTH_PEAK]#.min()
             if dx<cuts:
                 for ny in range(128,256):
                     ody = data.iloc[ny]
-                    dy = ody.to_numpy()
-                    dy =np.sort(dy)[:5].mean()#min()
+                    dy = ody.min()#np.sort(ody.to_numpy())[:2*HALF_WIDTH_PEAK]#min()
                     if dy<cuts:
-                        dg[nx, ny-128]+= dx
-        time2 = time.time()
-        ttaken = time2 - time1
-        print(ttaken,'/n',fname )
+                        # if any(np.abs(dx-dy) < np.abs(THRESHOLD)):
+                        dg[nx, ny-128]+= 1
     return dg
 
+def core_analyser(files):
+    dg = np.zeros((128,128))
+    for file in files:
+        data=unzipper(file)
+        
+        data_mins =MAX_CHARGE- data.min(axis=1)
+        x_min = data_mins.iloc[:128]
+        y_min = data_mins.iloc[128:]   
+
+        xp,xh = find_peaks(x_min,height=0.075)
+        yp,yh = find_peaks(y_min,height=0.075)
+        for i,nx in enumerate(xp):       
+            for j,ny in enumerate(yp):
+                dg[nx, ny-128]+= (xh['peak_heights'][i]+yh['peak_heights'][j])    
+        return dg
 
 
-def analysis6mzip(files = None, n_cores = 4,cuts:float = None):
+
+def analysis6mzip(function=analyser, files = None, n_cores = 4,cuts:float = None):
     if files is None:
-        files = glob.glob("*.zip")
-    partis=int(len(files)/n_cores)
-    
+        files = glob.glob("*.zip")    
     filelist = batched(files,n_cores)
     
     dataGrid = np.zeros((128,128))
 
     with ProcessPoolExecutor() as Executor:
-        results = Executor.map(analyser, filelist,cuts*np.ones(4))
+        results = Executor.map(function, filelist)
     for result in results:
         dataGrid+= result
     return dataGrid
@@ -164,14 +184,12 @@ def analysis6mzip(files = None, n_cores = 4,cuts:float = None):
 
 if __name__ == "__main__":
 
-    time1 = time.time()
+    
     HALF_WIDTH_PEAK = 4
     THRESHOLD = 0.0005
     
     cuts = float(input('cut value :'))   
     dataGrid = analysis6mzip(cuts= cuts) 
     np.save(f'thr_{cuts}', dataGrid)
-    time2 = time.time()
-    ttaken = time2 - time1
-    print(ttaken)
-    print("success")
+
+    

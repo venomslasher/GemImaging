@@ -4,7 +4,7 @@ from typing import Tuple
 import customtkinter as ctk
 from customtkinter import filedialog, CTkFrame
 import numpy as np
-from analysis6mzip import unzipper
+from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, core_analyser
 import pandas as pd
 # import tkinter as tk
 # from tkinter import ttk
@@ -12,7 +12,9 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 import matplotlib
+import seaborn as sns
 from utils import to_inch
+
 
 
 SIZE = (1000,600)
@@ -191,7 +193,7 @@ class PeakView(CTkFrame):
 
         
         from scipy.signal import find_peaks
-        data_mins =.125- data.min(axis=1)
+        data_mins =MAX_CHARGE- data.min(axis=1)
         x_min = data_mins.iloc[:128]
         y_min = data_mins.iloc[128:]   
 
@@ -265,6 +267,66 @@ class PeakView(CTkFrame):
     def saveall(self):
         pass
 
+
+
+
+class ImageReconstructionFrame(CTkFrame):
+    def __init__(self, master,  **kwargs):
+        super().__init__(master, **kwargs)
+        self.batchsize = None
+        self.processes ={'default':4,'user_set':None}
+        self.hmap = None
+        self.files_list = None
+        self.directory = None
+        self.hits_data = None
+
+        self.buttonframe = CTkFrame(master=self)
+        self.buttonframe.pack(expand=True,fill='both')
+
+        self.plotframe = CTkFrame(master=self)
+        self.plotframe.pack(expand=True,fill='both')
+
+        self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
+        self.button_select.pack(expand=True,fill='both')
+    
+    def getfiles(self):
+        self.directory = filedialog.askdirectory()
+        self.data_files_list= {i:k for i,k in enumerate(glob.glob(os.path.join(self.directory,'*.zip')))}
+        self.analyse()
+        # self.files_list_len = len(self.data_files_list)
+
+    def plot_hitmap(self,data):
+        cind = np.arange(0,128)
+        data = pd.DataFrame(data.T, columns=cind ,index=cind)
+        fig = sns.heatmap(data).get_figure()
+        self.setplot(fig)
+        # plt.show()
+
+    def setplot(self,fig):
+        plt.close()
+        for wids in self.plotframe.winfo_children():
+                wids.destroy()
+        canvas = FigureCanvasTkAgg(fig, master=self.plotframe)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.grid(row=0,column=0)    	
+        toolbar = NavigationToolbar2Tk(canvas, self.plotframe, pack_toolbar=False)
+        toolbar.update()
+        toolbar.grid(row = 1,column= 0,sticky='we')
+    
+    def analyse(self):
+        if self.processes['user_set'] is None:
+            n_cores = 4
+        else:
+            n_cores = self.processes['user_set']
+        print(type(self.data_files_list.values()))
+        self.hits_data = analysis6mzip(core_analyser, files=list(self.data_files_list.values()),n_cores = n_cores)
+        self.plot_hitmap(self.hits_data)
+        
+    
+    
+
+
+
 class TabWrapper(ctk.CTkTabview):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
@@ -275,6 +337,10 @@ class TabWrapper(ctk.CTkTabview):
         self.add('tab2')
         self.peakanalysis = PeakView(self.tab('tab2'))
         self.peakanalysis.pack(expand=True,fill='both')
+
+        self.add('Imaging')
+        self.imagerecons = ImageReconstructionFrame(self.tab('Imaging'))
+        self.imagerecons.pack(expand=True,fill='both')
         self.add('settings')
         self.settings = SettingsFrame(self.tab('settings'))
         self.settings.pack(expand=True,fill='both')
@@ -291,5 +357,7 @@ class App(ctk.CTk):
         self.view = TabWrapper(self)
         self.view.pack(expand=True, fill = 'both')
         #self.resizable(width=False, height=False)
-app = App()
-app.mainloop()
+
+if __name__ == '__main__':
+    app = App()
+    app.mainloop()
