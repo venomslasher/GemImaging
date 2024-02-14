@@ -11,6 +11,7 @@ import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker 
 import matplotlib
 import seaborn as sns
 from utils import to_inch
@@ -19,20 +20,6 @@ from utils import to_inch
 
 SIZE = (1000,600)
 matplotlib.use('TkAgg')
-
-# matplotlib.rcParams.update({# Use mathtext, not LaTeX
-#                             'text.usetex': False,
-#                             # Use the Computer modern font
-#                             'font.family': 'serif',
-#                             'font.serif': 'cmr10',
-#                             'mathtext.fontset': 'cm',
-#                             # Use ASCII minus
-#                             'axes.unicode_minus': False,
-#                             })
-
-
-
-
 
 class SettingsFrame(CTkFrame):
     def __init__(self, master, **kwargs):
@@ -70,6 +57,7 @@ class Tab1Frame(CTkFrame):
 
         self.strip_num_btn = ctk.CTkComboBox(master=self.inputframe, values=[str(i) for i in range(1,257)],command=self.UpdateGraph)
         self.strip_num_btn.pack(anchor='center', expand=True, padx=10,pady= 20)#place(relx=.5, rely=0.7, anchor = 'center')
+
         self.strip_num_btn.bind('<Return>',self.UpdateGraph)
 
     def plotFile(self,data,i=0,peaks= False):
@@ -109,6 +97,9 @@ class Tab1Frame(CTkFrame):
                 wids.destroy()
             
             self.setplot(self.plotFile(data_file,i = int(i)-1))
+        except TypeError:
+            i = self.strip_num_btn.get()
+            self.setplot(self.plotFile(data_file,i = int(i)-1))
         except NameError:
             print('input file missing')
     
@@ -128,20 +119,22 @@ class Tab1Frame(CTkFrame):
             data = wind.name
             data_file = pd.read_csv(data,header=None)
         self.setplot(self.plotFile(data_file,i = int(stp_num)))
-    
+
+    def EnterUpdateGraph(self,e):
+        print(e)    
 
 class PeakView(CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
 
-        self.plotframe = CTkFrame(master=self)
-        self.buttonframe = CTkFrame(master=self)
+        self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
+        self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
 
         # self.plotframe.pack(expand=True, fill = 'both',side='left')
         # self.buttonframe.pack(expand=True, fill = 'both',side='left')
 
-        self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='snew')
-        self.buttonframe.grid(row=0,column = 3,sticky='snew')
+        self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
+        self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
         self.peak_det_btn = ctk.CTkButton(master=self.buttonframe, text='detect peaks',command=self.detectpeaks)
         self.peak_det_btn.grid(row= 0,column= 0, padx=10,pady= 20,sticky='ew',columnspan=2)
@@ -170,6 +163,7 @@ class PeakView(CTkFrame):
         self.data_files_list=None
         self.files_list_len = None
         self.directory = None
+        self.figure=None
         
     def getfiles(self):
         self.directory = filedialog.askdirectory()
@@ -186,12 +180,9 @@ class PeakView(CTkFrame):
         toolbar = NavigationToolbar2Tk(canvas, self.plotframe, pack_toolbar=False)
         toolbar.update()
         toolbar.grid(row = 1,column= 0,sticky='we')
-    
-    def detectpeaks(self):
-        self.getfiles()
-        data= unzipper(self.data_files_list[self.current_file])
 
-        
+    
+    def makeplot(self,data):
         from scipy.signal import find_peaks
         data_mins =MAX_CHARGE- data.min(axis=1)
         x_min = data_mins.iloc[:128]
@@ -201,72 +192,45 @@ class PeakView(CTkFrame):
         yp,yh = find_peaks(y_min,height=0.075)
 
         fig,(ax1,ax2) = plt.subplots(nrows=2, ncols=1)
-        fig.suptitle(f'{self.data_files_list[self.current_file]}')
+        fig.suptitle(f'{os.path.basename(self.data_files_list[self.current_file])}')
         ax1.set_xlabel('x')
         ax1.set_ylabel('charge')
+        ax1.grid(True)
+        ax1.xaxis.set_major_locator(ticker.MultipleLocator(5)) 
 
         ax1.plot(xp,xh['peak_heights'],linestyle = '',marker='.')
         ax2.plot(yp,yh['peak_heights'],linestyle = '',marker='.')
         ax2.set_xlabel('y')
         ax2.set_ylabel('charge')
-        self.setplot(fig)
+        ax2.grid(True)
+        ax2.xaxis.set_major_locator(ticker.MultipleLocator(5)) 
+        fig.set_tight_layout(True)
+        self.figure = fig
+        self.setplot(self.figure)
 
-
+    
+    def detectpeaks(self):
+        self.getfiles()
+        data= unzipper(self.data_files_list[self.current_file])
+        self.makeplot(data)
 
     def next_graph(self):
         if self.current_file<self.files_list_len:
-
             self.current_file = self.current_file+1
-            data= unzipper(self.data_files_list[self.current_file])        
-            from scipy.signal import find_peaks
-            data_mins =.125- data.min(axis=1)
-            x_min = data_mins.iloc[:128]
-            y_min = data_mins.iloc[128:]   
-
-            xp,xh = find_peaks(x_min,height=0.075)
-            yp,yh = find_peaks(y_min,height=0.075)
-
-            fig,(ax1,ax2) = plt.subplots(nrows=2, ncols=1)
-
-            fig.suptitle(f'{self.data_files_list[self.current_file]}')
-
-            ax1.plot(xp,xh['peak_heights'],linestyle = '',marker='.')
-            ax1.set_xlabel('x')
-            ax1.set_ylabel('charge')
-            ax2.plot(yp,yh['peak_heights'],linestyle = '',marker='.')
-            ax2.set_xlabel('y')
-            ax2.set_ylabel('charge')
-            self.setplot(fig)
+            data= unzipper(self.data_files_list[self.current_file])
+            self.makeplot(data)
 
     def prev_graph(self):
         if self.current_file>0:
             self.current_file = self.current_file-1
-            data= unzipper(self.data_files_list[self.current_file])        
-            from scipy.signal import find_peaks
-            data_mins =.125- data.min(axis=1)
-            x_min = data_mins.iloc[:128]
-            y_min = data_mins.iloc[128:]   
-
-            xp,xh = find_peaks(x_min,height=0.075)
-            yp,yh = find_peaks(y_min,height=0.075)
-
-            fig,(ax1,ax2) = plt.subplots(nrows=2, ncols=1)
-            fig.suptitle(f'{self.data_files_list[self.current_file]}')
-
-            ax1.plot(xp,xh['peak_heights'],linestyle = '',marker='.')
-            ax1.set_xlabel('x')
-            ax1.set_ylabel('charge')
-            ax2.plot(yp,yh['peak_heights'],linestyle = '',marker='.')
-            ax2.set_xlabel('y')
-            ax2.set_ylabel('charge')
-            self.setplot(fig)
+            data= unzipper(self.data_files_list[self.current_file])
+            self.makeplot(data)
 
     def save(self):
         pass
 
     def saveall(self):
         pass
-
 
 
 
@@ -280,26 +244,34 @@ class ImageReconstructionFrame(CTkFrame):
         self.directory = None
         self.hits_data = None
 
-        self.buttonframe = CTkFrame(master=self)
-        self.buttonframe.pack(expand=True,fill='both')
+        self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
+        # self.plotframe.pack(expand=True,fill='both')
+        self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
 
-        self.plotframe = CTkFrame(master=self)
-        self.plotframe.pack(expand=True,fill='both')
+        self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
+        # self.buttonframe.pack(expand=True,fill='both')
+        self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
         self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
-        self.button_select.pack(expand=True,fill='both')
-    
+        self.button_select.pack(expand=False,fill='both',padx=(100,100),pady=10)
+
+        self.button_save = ctk.CTkButton(master=self.buttonframe, text='savefig',command=self.savefig)
+        self.button_save.pack(expand=False,fill='both',padx=(100,100),pady=50)
+
     def getfiles(self):
         self.directory = filedialog.askdirectory()
+        if len(self.directory) == 0:
+            return
         self.data_files_list= {i:k for i,k in enumerate(glob.glob(os.path.join(self.directory,'*.zip')))}
         self.analyse()
         # self.files_list_len = len(self.data_files_list)
 
     def plot_hitmap(self,data):
         cind = np.arange(0,128)
-        data = pd.DataFrame(data.T, columns=cind ,index=cind)
-        fig = sns.heatmap(data).get_figure()
-        self.setplot(fig)
+        data = pd.DataFrame(data.T, columns=cind ,index=cind)/100
+        
+        self.hmap = sns.heatmap(data).get_figure()
+        self.setplot(self.hmap)
         # plt.show()
 
     def setplot(self,fig):
@@ -311,31 +283,34 @@ class ImageReconstructionFrame(CTkFrame):
         canvas_widget.grid(row=0,column=0)    	
         toolbar = NavigationToolbar2Tk(canvas, self.plotframe, pack_toolbar=False)
         toolbar.update()
-        toolbar.grid(row = 1,column= 0,sticky='we')
+        toolbar.grid(row = 1,column= 0,sticky='ew')
     
     def analyse(self):
         if self.processes['user_set'] is None:
             n_cores = 4
         else:
             n_cores = self.processes['user_set']
-        print(type(self.data_files_list.values()))
         self.hits_data = analysis6mzip(core_analyser, files=list(self.data_files_list.values()),n_cores = n_cores)
         self.plot_hitmap(self.hits_data)
         
+    def savefig(self):
+        loca = filedialog.askdirectory()
+        if len(loca) == 0:
+            return
+        
+        self.hmap.savefig(os.path.join(loca,'recon_image.jpg'),dpi=900)
     
     
-
-
 
 class TabWrapper(ctk.CTkTabview):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        self.add('Tab')
-        self.tab1 = Tab1Frame(self.tab('Tab'))
+        self.add('File Inspect')
+        self.tab1 = Tab1Frame(self.tab('File Inspect'))
         self.tab1.pack(expand=True, fill = 'both')
 
-        self.add('tab2')
-        self.peakanalysis = PeakView(self.tab('tab2'))
+        self.add('Peak Inspect/detect')
+        self.peakanalysis = PeakView(self.tab('Peak Inspect/detect'))
         self.peakanalysis.pack(expand=True,fill='both')
 
         self.add('Imaging')
@@ -353,7 +328,7 @@ class App(ctk.CTk):
 
         self.title("GEM Imaging")
         self.geometry(f'{SIZE[0]}x{SIZE[1]}')
-        self.iconbitmap()
+        self.iconbitmap('favicon.ico')
         self.view = TabWrapper(self)
         self.view.pack(expand=True, fill = 'both')
         #self.resizable(width=False, height=False)

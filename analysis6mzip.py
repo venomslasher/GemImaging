@@ -12,6 +12,22 @@ from scipy.signal import find_peaks
 MAX_CHARGE= .125
 
 
+def discretise(arr, h=10):
+    temp_arr = arr.copy()
+    
+    arr_min = 0
+    arr_max = 0.125
+    r = arr_max - arr_min
+    w = r/h
+    ih=0
+    while ih<=h:
+        temp_arr[np.where((arr_min+(ih*w)<arr) & (arr <arr_min+(ih+1)*w))] = ih
+        ih+=1
+    temp_arr[temp_arr>.125] = ih+1
+
+    return temp_arr
+
+
 def DataCleaner(data):
     return pd.DataFrame(data).astype('float64')
 
@@ -160,9 +176,12 @@ def core_analyser(files):
 
         xp,xh = find_peaks(x_min,height=0.075)
         yp,yh = find_peaks(y_min,height=0.075)
+
+        xv = discretise(xh['peak_heights'])
+        yv = discretise(yh['peak_heights'])
         for i,nx in enumerate(xp):       
             for j,ny in enumerate(yp):
-                dg[nx, ny-128]+= (xh['peak_heights'][i]+yh['peak_heights'][j])    
+                dg[nx, ny-128]+= (xv[i]+yv[j])*0.5
         return dg
 
 
