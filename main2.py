@@ -152,16 +152,20 @@ class PeakView(CTkFrame):
         self.max_charge.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
 
         self.height_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Height threshold: ")
-        self.height_thresh_label.grid(row=3,column=0, padx=1,pady= 2)
+        self.height_thresh_label.grid(row=4,column=0, padx=1,pady= 2)
 
         self.height_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.075)
-        self.height_thresh.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+        self.height_thresh.grid(row=4,column=1,columnspan=2, padx=1,pady= 2)
 
         self.width_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Peak Width threshold(max) :")
-        self.width_thresh_label.grid(row=3,column=0, padx=1,pady= 2)
+        self.width_thresh_label.grid(row=5,column=0, padx=1,pady= 2)
 
         self.width_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 8)
-        self.width_thresh.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+        self.width_thresh.grid(row=5,column=1,columnspan=2, padx=1,pady= 2)
+
+
+        self.button_update = ctk.CTkButton(master=self.buttonframe, text='update',command=self.updategraph)
+        self.button_update.grid(row=6,column=0, padx=10,pady= 20,columnspan=2)
 
         
         self.plotframe.bind('<KeyRelease-Left>', self.prev_graph)
@@ -275,6 +279,14 @@ class PeakView(CTkFrame):
             self.save(file_to_save=file)
         pass
 
+    def updategraph(self):
+
+        width_thresh = self.width_thresh.get()
+        height_thresh = self.height_thresh.get()
+        max_charge = self.max_charge.get()
+        print(int(width_thresh))
+        print(f'{width_thresh}, {height_thresh}, {max_charge}')
+
 
 
 class ImageReconstructionFrame(CTkFrame):
@@ -294,10 +306,34 @@ class ImageReconstructionFrame(CTkFrame):
         self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
         self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
-        self.button_select.pack(expand=False,fill='both',padx=(100,100),pady=10)
+        self.button_select.grid(row= 0,column= 0, padx=10,pady= 20,sticky='ew',columnspan=2)#pack(expand=False,fill='both',padx=(100,100),pady=10)
 
         self.button_save = ctk.CTkButton(master=self.buttonframe, text='savefig',command=self.savefig)
-        self.button_save.pack(expand=False,fill='both',padx=(100,100),pady=50)
+        self.button_save.grid(row=2,column=0, padx=10,pady= 20)#pack(expand=False,fill='both',padx=(100,100),pady=50)
+
+
+        self.max_charge_label = ctk.CTkLabel(master=self.buttonframe,text= "Max charge")
+        self.max_charge_label.grid(row=3,column=0, padx=1,pady= 2)
+
+        self.max_charge = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.125)
+        self.max_charge.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+
+        self.height_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Height threshold: ")
+        self.height_thresh_label.grid(row=4,column=0, padx=1,pady= 2)
+
+        self.height_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.075)
+        self.height_thresh.grid(row=4,column=1,columnspan=2, padx=1,pady= 2)
+
+        self.width_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Peak Width threshold(max) :")
+        self.width_thresh_label.grid(row=5,column=0, padx=1,pady= 2)
+
+        self.width_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 8)
+        self.width_thresh.grid(row=5,column=1,columnspan=2, padx=1,pady= 2)
+
+        self.button_update = ctk.CTkButton(master=self.buttonframe, text='update',command=self.updategraph)
+        self.button_update.grid(row=6,column=0, padx=10,pady= 20,columnspan=2)#pack(expand=False,fill='both',padx=(100,100),pady=50)
+
+        print(self.master.master)
 
     def getfiles(self):
         self.directory = filedialog.askdirectory()
@@ -344,6 +380,14 @@ class ImageReconstructionFrame(CTkFrame):
         
         self.hmap.savefig(os.path.join(loca,'recon_image.jpg'),dpi=900)
     
+    def updategraph(self):
+
+        width_thresh = self.width_thresh.get()
+        height_thresh = self.height_thresh.get()
+        max_charge = self.max_charge.get()
+        print(int(width_thresh))
+        print(f'{width_thresh}, {height_thresh}, {max_charge}')
+        
     
 
 class TabWrapper(ctk.CTkTabview):
