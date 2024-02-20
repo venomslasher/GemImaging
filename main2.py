@@ -1,21 +1,17 @@
 import os
 import glob
-from typing import Tuple
 import customtkinter as ctk
 from customtkinter import filedialog, CTkFrame
+from tkinter import messagebox
 import numpy as np
 from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, core_analyser
 import pandas as pd
-# import tkinter as tk
-# from tkinter import ttk
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker 
 import matplotlib
 import seaborn as sns
-from utils import to_inch
-
 
 
 SIZE = (1000,600)
@@ -26,6 +22,7 @@ class SettingsFrame(CTkFrame):
         super().__init__(master, **kwargs)
         self.lod_btn = ctk.CTkButton(master=self, text = "Light mode",corner_radius=0, command=self.toggle_theme)
         self.lod_btn.pack(anchor='center', expand=True, padx=10,pady= 20)#.place(relx = .8, rely=0.7, anchor = "center")
+
 
         self.lod = True
     def toggle_theme(self):
@@ -130,32 +127,46 @@ class PeakView(CTkFrame):
         self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
         self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
 
-        # self.plotframe.pack(expand=True, fill = 'both',side='left')
-        # self.buttonframe.pack(expand=True, fill = 'both',side='left')
-
         self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
         self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
         self.peak_det_btn = ctk.CTkButton(master=self.buttonframe, text='detect peaks',command=self.detectpeaks)
         self.peak_det_btn.grid(row= 0,column= 0, padx=10,pady= 20,sticky='ew',columnspan=2)
-        # self.peak_det_btn.grid (row= 0,column= 0, padx=10,pady= 20,sticky='ew')
-        #self.peak_det_btn.pack(anchor='center', expand=True, padx=10,pady= 20)
 
         self.prev_button = ctk.CTkButton(master=self.buttonframe,text='<',command=self.prev_graph)
         self.prev_button.grid(row=1,column=0, padx=10,pady= 20)
-        #self.prev_button.pack(anchor='center', expand=True, padx=10,pady= 20)
 
         self.next_button = ctk.CTkButton(master=self.buttonframe,text='>',command=self.next_graph)
         self.next_button.grid(row=1,column=1, padx=10,pady= 20)
-        #self.next_button.pack(anchor='center', expand=True, padx=10,pady= 20)
 
         self.save_btn = ctk.CTkButton(master=self.buttonframe, text='save',command=self.save)
         self.save_btn.grid(row=2,column=0, padx=10,pady= 20)
-        #self.save_btn.pack(anchor='center', expand=True, padx=10,pady= 20)
 
         self.save_all_btn = ctk.CTkButton(master=self.buttonframe, text='save all',command=self.saveall)
         self.save_all_btn.grid(row=2,column=1, padx=10,pady= 20)
-        # self.save_all_btn.pack(anchor='center', expand=True, padx=10,pady= 20)
+
+        self.max_charge_label = ctk.CTkLabel(master=self.buttonframe,text= "Max charge")
+        self.max_charge_label.grid(row=3,column=0, padx=1,pady= 2)
+
+        self.max_charge = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.125)
+        self.max_charge.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+
+        self.height_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Height threshold: ")
+        self.height_thresh_label.grid(row=3,column=0, padx=1,pady= 2)
+
+        self.height_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.075)
+        self.height_thresh.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+
+        self.width_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Peak Width threshold(max) :")
+        self.width_thresh_label.grid(row=3,column=0, padx=1,pady= 2)
+
+        self.width_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 8)
+        self.width_thresh.grid(row=3,column=1,columnspan=2, padx=1,pady= 2)
+
+        
+        self.plotframe.bind('<KeyRelease-Left>', self.prev_graph)
+        self.plotframe.bind('<KeyRelease-Right>', self.next_graph)
+        self.plotframe.focus_set()
 
         self.next_file= None
         self.prev_file = None
@@ -182,9 +193,9 @@ class PeakView(CTkFrame):
         toolbar.grid(row = 1,column= 0,sticky='we')
 
     
-    def makeplot(self,data):
+    def makeplot(self,data,max_charge=MAX_CHARGE):
         from scipy.signal import find_peaks
-        data_mins =MAX_CHARGE- data.min(axis=1)
+        data_mins =max_charge- data.min(axis=1)
         x_min = data_mins.iloc[:128]
         y_min = data_mins.iloc[128:]   
 
@@ -196,14 +207,17 @@ class PeakView(CTkFrame):
         ax1.set_xlabel('x')
         ax1.set_ylabel('charge')
         ax1.grid(True)
-        ax1.xaxis.set_major_locator(ticker.MultipleLocator(5)) 
+        ax1.xaxis.set_major_locator(ticker.MultipleLocator(4))
+        ax1.tick_params(axis='x', labelsize=5)    
 
         ax1.plot(xp,xh['peak_heights'],linestyle = '',marker='.')
         ax2.plot(yp,yh['peak_heights'],linestyle = '',marker='.')
         ax2.set_xlabel('y')
         ax2.set_ylabel('charge')
         ax2.grid(True)
-        ax2.xaxis.set_major_locator(ticker.MultipleLocator(5)) 
+        ax2.xaxis.set_major_locator(ticker.MultipleLocator(4))
+        ax2.tick_params(axis='x', labelsize=5)
+        
         fig.set_tight_layout(True)
         self.figure = fig
         self.setplot(self.figure)
@@ -226,10 +240,39 @@ class PeakView(CTkFrame):
             data= unzipper(self.data_files_list[self.current_file])
             self.makeplot(data)
 
-    def save(self):
-        pass
+    def save(self,max_charge=MAX_CHARGE,file_to_save=None):
+        if file_to_save is None:
+            file_to_save=self.data_files_list[self.current_file]
+        from scipy.signal import find_peaks
+        data = unzipper(file_to_save)
+        data_mins =max_charge- data.min(axis=1)
+        x_min = data_mins.iloc[:128]
+        y_min = data_mins.iloc[128:]
+        xp,xh = find_peaks(x_min,height=0.075)
+        yp,yh = find_peaks(y_min,height=0.075)
 
-    def saveall(self):
+        df = pd.DataFrame.from_dict({
+            'x_peaks':xp,
+            'x_heights':xh['peak_heights'],
+            'y_peaks':yp,
+            'y_heights':yh['peak_heights']
+        },orient='index')
+
+        while True:
+            try:
+                df.T.to_csv(f'{os.path.basename(self.data_files_list[self.current_file]).split('.')[0]}.csv')
+                break
+            except PermissionError:
+                retry_or = messagebox.askretrycancel("Permission error", "close open file and Try again")
+            if retry_or is False:
+                break
+
+
+
+
+    def saveall(self,as_single_file=False):
+        for file in self.data_files_list:
+            self.save(file_to_save=file)
         pass
 
 
@@ -245,11 +288,9 @@ class ImageReconstructionFrame(CTkFrame):
         self.hits_data = None
 
         self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
-        # self.plotframe.pack(expand=True,fill='both')
         self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
 
         self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
-        # self.buttonframe.pack(expand=True,fill='both')
         self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
         self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
@@ -264,15 +305,18 @@ class ImageReconstructionFrame(CTkFrame):
             return
         self.data_files_list= {i:k for i,k in enumerate(glob.glob(os.path.join(self.directory,'*.zip')))}
         self.analyse()
-        # self.files_list_len = len(self.data_files_list)
 
     def plot_hitmap(self,data):
         cind = np.arange(0,128)
-        data = pd.DataFrame(data.T, columns=cind ,index=cind)/100
+        dataf = pd.DataFrame(np.round((data.T)/10), columns=cind ,index=cind)
         
-        self.hmap = sns.heatmap(data).get_figure()
+        self.hmap = sns.heatmap(dataf).get_figure()
+
+        density_data = data.copy()
+        # plt.contourf(np.log(data))
+        # data.to_csv('img_data.csv')        
         self.setplot(self.hmap)
-        # plt.show()
+
 
     def setplot(self,fig):
         plt.close()

@@ -1,5 +1,4 @@
 import glob
-import time
 from itertools import batched
 import pandas as pd
 import numpy as np
@@ -12,7 +11,7 @@ from scipy.signal import find_peaks
 MAX_CHARGE= .125
 
 
-def discretise(arr, h=10):
+def discretise(arr, h=0):
     temp_arr = arr.copy()
     
     arr_min = 0
@@ -165,34 +164,39 @@ def analyser2(files,cuts=.005):
                         dg[nx, ny-128]+= 1
     return dg
 
-def core_analyser(files):
+
+#0.075
+def core_analyser(files,height_threshold=0.09,max_charge=MAX_CHARGE,peakwidth = 8):
     dg = np.zeros((128,128))
     for file in files:
         data=unzipper(file)
         
-        data_mins =MAX_CHARGE- data.min(axis=1)
+        data_mins =max_charge- data.min(axis=1)
         x_min = data_mins.iloc[:128]
         y_min = data_mins.iloc[128:]   
 
-        xp,xh = find_peaks(x_min,height=0.075)
-        yp,yh = find_peaks(y_min,height=0.075)
+        xp,xh = find_peaks(x_min,height=height_threshold,width=peakwidth)
+        yp,yh = find_peaks(y_min,height=height_threshold,width=peakwidth)
 
-        xv = discretise(xh['peak_heights'])
-        yv = discretise(yh['peak_heights'])
+        xv = xh['peak_heights']#discretise(xh['peak_heights'])
+        yv = yh['peak_heights']#discretise(yh['peak_heights'])
+
+        bins = np.arange(0,.125,0.05)
+        bin_label = bins[1:]
+
+       
         for i,nx in enumerate(xp):       
             for j,ny in enumerate(yp):
-                dg[nx, ny-128]+= (xv[i]+yv[j])*0.5
+                if np.abs(xv[i]/yv[j])>.75:
+                    dg[nx, ny-128]+= xv[i]+yv[j]
         return dg
 
 
-
-def analysis6mzip(function=analyser, files = None, n_cores = 4,cuts:float = None):
+def analysis6mzip(function=analyser, files = None, n_cores = 4):
     if files is None:
         files = glob.glob("*.zip")    
-    filelist = batched(files,n_cores)
-    
+    filelist = batched(files,n_cores)    
     dataGrid = np.zeros((128,128))
-
     with ProcessPoolExecutor() as Executor:
         results = Executor.map(function, filelist)
     for result in results:
@@ -202,13 +206,7 @@ def analysis6mzip(function=analyser, files = None, n_cores = 4,cuts:float = None
 
 
 if __name__ == "__main__":
-
-    
-    HALF_WIDTH_PEAK = 4
-    THRESHOLD = 0.0005
-    
-    cuts = float(input('cut value :'))   
-    dataGrid = analysis6mzip(cuts= cuts) 
-    np.save(f'thr_{cuts}', dataGrid)
+    dataGrid = analysis6mzip() 
+    np.save(f'result', dataGrid)
 
     
