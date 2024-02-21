@@ -322,6 +322,9 @@ class ImageReconstructionFrame(CTkFrame):
         self.files_list = None
         self.directory = None
         self.hits_data = None
+        self.width_thresh = None
+        self.height_thresh = None
+        self.max_charge = None
 
         self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
         self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
@@ -358,6 +361,8 @@ class ImageReconstructionFrame(CTkFrame):
         self.button_update.grid(row=6,column=0, padx=10,pady= 20,columnspan=2)#pack(expand=False,fill='both',padx=(100,100),pady=50)
 
         print(self.master.master.tab('File Inspect').winfo_children())
+
+        self.load_defaults()
 
     def getfiles(self):
         self.directory = filedialog.askdirectory()
@@ -398,7 +403,11 @@ class ImageReconstructionFrame(CTkFrame):
         self.plot_hitmap(self.hits_data)
         
     def savefig(self):
-        loca = filedialog.askdirectory()
+        loca = filedialog.asksaveasfilename(filetypes=[('JPEG image', '.jpg'), ('PNG image', '.png')],                                                       
+                                            defaultextension='.png',
+                                            initialfile='recon_image.png'
+                                            )
+        print(loca)
         if len(loca) == 0:
             return
         
@@ -406,11 +415,16 @@ class ImageReconstructionFrame(CTkFrame):
     
     def updategraph(self):
 
-        width_thresh = self.width_thresh.get()
-        height_thresh = self.height_thresh.get()
-        max_charge = self.max_charge.get()
-        print(int(width_thresh))
-        print(f'{width_thresh}, {height_thresh}, {max_charge}')
+        self.width_thresh = self.width_thresh.get()
+        self.height_thresh = self.height_thresh.get()
+        self.max_charge = self.max_charge.get()
+    
+
+    def load_defaults(self):
+        self.width_thresh = 8
+        self.height_thresh = .075
+        self.max_charge = .125
+        self.processes = 4
         
     
 
