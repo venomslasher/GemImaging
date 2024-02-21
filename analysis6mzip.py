@@ -181,10 +181,6 @@ def core_analyser(files,height_threshold=0.09,max_charge=MAX_CHARGE,peakwidth = 
         xv = xh['peak_heights']#discretise(xh['peak_heights'])
         yv = yh['peak_heights']#discretise(yh['peak_heights'])
 
-        bins = np.arange(0,.125,0.05)
-        bin_label = bins[1:]
-
-       
         for i,nx in enumerate(xp):       
             for j,ny in enumerate(yp):
                 if np.abs(xv[i]/yv[j])>.75:
