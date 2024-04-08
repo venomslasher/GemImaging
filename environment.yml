@@ -36,4 +36,5 @@ dependencies:
       - seaborn==0.13.2
       - six==1.16.0
       - tzdata==2024.1
+      - scikit-learn==1.4.0
 prefix: C:\Users\intel\anaconda3\envs\gem_gui

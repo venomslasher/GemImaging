@@ -6,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 from zipfile import ZipFile
 from io import TextIOWrapper, StringIO
 from scipy.signal import find_peaks
+from sklearn.cluster import KMeans
 
 
 MAX_CHARGE= .125
@@ -166,7 +167,7 @@ def analyser2(files,cuts=.005):
 
 
 #0.075
-def core_analyser(files,height_threshold=0.09,max_charge=MAX_CHARGE,peakwidth = 8):
+def core_analyser(files,height_threshold=0.07,max_charge=MAX_CHARGE,peakwidth = 8):
     dg = np.zeros((128,128))
     for file in files:
         data=unzipper(file)
@@ -187,12 +188,72 @@ def core_analyser(files,height_threshold=0.09,max_charge=MAX_CHARGE,peakwidth = 
        
         for i,nx in enumerate(xp):       
             for j,ny in enumerate(yp):
-                if np.abs(xv[i]/yv[j])>.75:
-                    dg[nx, ny-128]+= xv[i]+yv[j]
+                # if np.abs(xv[i]/yv[j])>.75:
+                dg[nx, ny-128]+= 1#xv[i]+yv[j]
         return dg
 
 
-def analysis6mzip(function=analyser, files = None, n_cores = 4):
+
+def strip_finding(cluster_process):
+    # Calculate weighted average
+    cluster_x = [item for item in cluster_process if item[0] <= 128] 
+    cluster_y = [item for item in cluster_process if item[0] > 128] 
+    
+    weighted_sum_x, weighted_sum_y = sum(value * weight for value, weight in cluster_x), sum(value * weight for value, weight in cluster_y)
+    total_weight_x, total_weight_y = sum(weight for _, weight in cluster_x), sum(weight for _, weight in cluster_y)
+    
+    if (total_weight_x!=0 and total_weight_y!=0):
+        weighted_avg_x, weighted_avg_y = weighted_sum_x / total_weight_x, weighted_sum_y / total_weight_y
+        # Find the first value closest to the weighted average
+        closest_value_x = min(cluster_x, key=lambda x: abs(x[0] - weighted_avg_x))[0]
+        closest_value_y = min(cluster_y, key=lambda y: abs(y[0] - weighted_avg_y))[0]
+    else:
+        closest_value_x=-1
+        closest_value_y=-1
+    
+    return closest_value_x, closest_value_y
+
+
+def image_reconstructor(files):
+    dg = np.zeros((128,128))
+    for file in files:
+        data=unzipper(file)
+        inverted_data = 1 - data
+        transpose_inverted_data = inverted_data.T
+        for index, d_ in transpose_inverted_data.iterrows():
+            data_ = d_.values
+            data_ = data_.reshape(-1,1)
+            kmeans = KMeans(n_clusters=4, random_state=42,n_init=10)
+            kmeans.fit(data_)
+            centers = kmeans.cluster_centers_
+            cluster_labels = kmeans.labels_
+
+            charges_per_cluster = {i: [] for i in range(kmeans.n_clusters)}
+            avgCharge_per_cluster = {}
+            for i, charge in enumerate(data_):
+                charges_per_cluster[cluster_labels[i]].append((i,charge))
+
+            for cluster_label, charges in charges_per_cluster.items():
+                avgCharge_per_cluster[cluster_label] = sum(value[1] for value in charges_per_cluster[cluster_label]) / len(charges_per_cluster[cluster_label])
+            
+            max_avgCharge_key = max(avgCharge_per_cluster, key=lambda k: avgCharge_per_cluster[k])
+            cluster_to_process = charges_per_cluster[max_avgCharge_key]
+
+            if avgCharge_per_cluster[max_avgCharge_key] < 0.91:
+                continue
+
+            stripx, stripy = strip_finding(cluster_to_process)
+            if stripx==-1 or stripy==-1:
+                continue
+
+            dg[stripx,stripy-128] +=1
+
+    return dg
+
+
+
+
+def analysis6mzip(function=core_analyser, files = None, n_cores = 4):
     if files is None:
         files = glob.glob("*.zip")    
     filelist = batched(files,n_cores)    
