@@ -1,4 +1,5 @@
 import glob
+import time
 from itertools import batched
 import pandas as pd
 import numpy as np
@@ -31,49 +32,6 @@ def discretise(arr, h=0):
 def DataCleaner(data):
     return pd.DataFrame(data).astype('float64')
 
-def unzipper1(input_zip, delimiter=','):
-    with ZipFile(input_zip, 'r') as zip_file:
-        # Assuming there's only one file in the zip archive
-        file_name = zip_file.namelist()[0]
-        with zip_file.open(file_name) as file_input:
-            # Use TextIOWrapper to handle decoding
-            lines = TextIOWrapper(file_input, encoding='utf-8').readlines()
-
-    # Filter and process lines
-    data = []
-    for line in lines:
-        print(line[0])
-        cleaned_line = line.strip().replace(',', '.')
-        cleaned_line = line.strip().replace('\t', ',')
-        if line and (line[0].isdigit() or (line[0] == '-' and line[1:4].isdigit())):
-            data.append(cleaned_line)
-        else:
-            print(f"Ignoring line: {line}")
-
-    # Create a string buffer using StringIO
-    buffer = StringIO('\n'.join(data))
-
-    # Create DataFrame directly from CSV data with configurable delimiter
-    df = pd.read_csv(buffer, header=None, delimiter=delimiter)
-
-    return df
-
-
-def unzipper2(input_zip,delimiter='\t'):
-    with ZipFile(input_zip, 'r') as zip_file:
-        # Assuming there's only one file in the zip archive
-        file_name = zip_file.namelist()[0]
-        with zip_file.open(file_name) as file_input:
-            # Use TextIOWrapper to handle decoding
-            lines = TextIOWrapper(file_input, encoding='utf-8').readlines()
-
-    # Filter and process lines
-    data = [line.strip().replace(',', '.') for line in lines if line and (line.strip()[0].isdigit() or (line[0] == '-' and line[1:].isdigit()))]
-    buffer = StringIO('\n'.join(data))
-
-    # Create DataFrame from buffer data
-    df = pd.read_csv(buffer,delimiter=delimiter, header=None)
-    return df
 
 
 def unzipper(input_zip):
@@ -166,6 +124,58 @@ def analyser2(files,cuts=.005):
     return dg
 
 
+def clustering_algo(arr,divs = 4):
+#     print(arr)
+    arr =pd.Series(arr,index=np.arange(0,256))
+    arr_s=arr.sort_values()
+    arr_s_d = np.insert(np.diff(arr_s),0,0)
+    series_s_d = pd.Series(arr_s_d,index = arr_s.index)
+    interval = series_s_d.sort_values()[::-1].iloc[:divs]
+    bins = np.sort(arr[interval.index].values)
+    bins=np.insert(bins,0,np.min(arr))
+    bins=np.append(bins,np.max(arr))
+    # print('bins:',bins)
+    #print('minmax',np.min(arr),np.max(arr))
+    arrSeries = pd.Series(arr)
+    labels=[i for i in range(0,len(np.unique(bins))-1)]
+    arrSeries_cut = pd.cut(arrSeries, bins, labels=labels, duplicates='drop')
+#     display('after cut',arrSeries_cut)
+#     plt.plot(arrSeries_cut)
+#     plt.plot(arr)
+#     plt.show()
+    return arrSeries_cut,labels
+
+
+def strip_finding(cluster_process):
+    # Calculate weighted average
+    cluster_x = [item for item in cluster_process if item[0] <= 128] 
+    cluster_y = [item for item in cluster_process if item[0] > 128] 
+    
+    #avgCharge_per_cluster_x = sum(value[1] for value in cluster_x) / len(cluster_x)
+    #avgCharge_per_cluster_y = sum(value[1] for value in cluster_y) / len(cluster_y)
+    #print(avgCharge_per_cluster_x, avgCharge_per_cluster_y)
+
+    weighted_sum_x, weighted_sum_y = sum(value * weight for value, weight in cluster_x), sum(value * weight for value, weight in cluster_y)
+    total_weight_x, total_weight_y = sum(weight for _, weight in cluster_x), sum(weight for _, weight in cluster_y)
+    
+    if (total_weight_x!=0 and total_weight_y!=0):
+        weighted_avg_x, weighted_avg_y = weighted_sum_x / total_weight_x, weighted_sum_y / total_weight_y
+        # Find the first value closest to the weighted average
+        closest_value_x = min(cluster_x, key=lambda x: abs(x[0] - weighted_avg_x))[0]
+        closest_value_y = min(cluster_y, key=lambda y: abs(y[0] - weighted_avg_y))[0]
+    else:
+        closest_value_x=-1
+        closest_value_y=-1
+    if closest_value_x == 128:
+        closest_value_x = 127
+    if closest_value_y ==256:
+        closest_value_y = 255
+
+    
+    return closest_value_x, closest_value_y
+    
+
+
 #0.075
 def core_analyser(files,height_threshold=0.07,max_charge=MAX_CHARGE,peakwidth = 8):
     dg = np.zeros((128,128))
@@ -192,26 +202,6 @@ def core_analyser(files,height_threshold=0.07,max_charge=MAX_CHARGE,peakwidth = 
                 dg[nx, ny-128]+= 1#xv[i]+yv[j]
         return dg
 
-
-
-def strip_finding(cluster_process):
-    # Calculate weighted average
-    cluster_x = [item for item in cluster_process if item[0] <= 128] 
-    cluster_y = [item for item in cluster_process if item[0] > 128] 
-    
-    weighted_sum_x, weighted_sum_y = sum(value * weight for value, weight in cluster_x), sum(value * weight for value, weight in cluster_y)
-    total_weight_x, total_weight_y = sum(weight for _, weight in cluster_x), sum(weight for _, weight in cluster_y)
-    
-    if (total_weight_x!=0 and total_weight_y!=0):
-        weighted_avg_x, weighted_avg_y = weighted_sum_x / total_weight_x, weighted_sum_y / total_weight_y
-        # Find the first value closest to the weighted average
-        closest_value_x = min(cluster_x, key=lambda x: abs(x[0] - weighted_avg_x))[0]
-        closest_value_y = min(cluster_y, key=lambda y: abs(y[0] - weighted_avg_y))[0]
-    else:
-        closest_value_x=-1
-        closest_value_y=-1
-    
-    return closest_value_x, closest_value_y
 
 
 def image_reconstructor(files):
@@ -251,7 +241,68 @@ def image_reconstructor(files):
     return dg
 
 
+def fill_occupancy_dic(files,fname,threshold=0.07,divs=4,zero_correction=0):
+    totalevents = len(files)
+    printProgressBar(0, totalevents, prefix = 'Progress:', suffix = 'Complete', length = 50)
+    occupancy_arr = np.zeros((128,128))
+    start_time = time.time()
+    
+    for iterations,file in enumerate(files):
 
+        data = ServeData(file,zero_correction=zero_correction)
+        occupancy_arr_file = np.zeros((128,128))
+        printProgressBar(iterations + 1, totalevents, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        for col in data.columns:
+            col_data = data[col]         
+            
+            data_with_index = col_data.reset_index().to_numpy()
+            data_points = data_with_index[:,1].reshape(-1, 1)
+            
+            cluster_labels,labels = clustering_algo(data_points.reshape(1,-1)[0],divs=divs)
+        
+            cluster_labels = cluster_labels.to_numpy()
+            indexes_per_cluster = {i: [] for i in range(len(labels))}
+            avgCharge_per_cluster = {}
+
+            # Iterate through data points and store indexes for each cluster
+            i=0
+            
+            for idx, label in zip(data_points[:, 0], cluster_labels):
+                i+=1
+                if np.isnan(label):
+                    continue
+                indexes_per_cluster[label].append((i,idx))
+
+
+            # Print indexes for each cluster
+            for cluster, indexes in indexes_per_cluster.items():
+                avgCharge_per_cluster[cluster] = sum(value[1] for value in indexes_per_cluster[cluster]) / len(indexes_per_cluster[cluster])
+
+            max_key = max(avgCharge_per_cluster, key=lambda k: avgCharge_per_cluster[k])
+            cluster_process = indexes_per_cluster[max_key]
+
+            #if avgCharge_per_cluster[max_key] < 0.96:
+            if avgCharge_per_cluster[max_key] < threshold:
+                continue
+
+            stripx,stripy = strip_finding(cluster_process)
+            
+
+            if stripx<0 or stripy<0:
+                continue
+                
+            occupancy_arr_file[stripx,stripy-128] =occupancy_arr_file[stripx,stripy-128]+ 1
+
+        occupancy_arr =np.dstack([occupancy_arr, occupancy_arr_file])
+
+
+    # dumpOccupancyData(occupancy_arr,fname)
+    end_time = time.time()
+    
+    elapsed_time = end_time - start_time
+
+    print(f"Elapsed time: {elapsed_time} in seconds.")
+    return occupancy_arr,elapsed_time
 
 def analysis6mzip(function=core_analyser, files = None, n_cores = 4):
     if files is None:
@@ -269,5 +320,3 @@ def analysis6mzip(function=core_analyser, files = None, n_cores = 4):
 if __name__ == "__main__":
     dataGrid = analysis6mzip() 
     np.save(f'result', dataGrid)
-
-    
