@@ -58,6 +58,12 @@ def unzipper(input_zip):
     df = DataCleaner(data_df).T
     return df
 
+def ServeData(files,mean=0, rms=0,zero_correction=0):
+    data = unzipper(files)
+    return zero_correction - data 
+
+def dumpOccupancyData(data,filename):
+    np.save(filename+".npy",data)
 
 def std_mu(x,y= None, return_mu=False):
     if y is None:
@@ -171,9 +177,7 @@ def strip_finding(cluster_process):
     if closest_value_y ==256:
         closest_value_y = 255
 
-    
     return closest_value_x, closest_value_y
-    
 
 
 #0.075
@@ -241,9 +245,8 @@ def image_reconstructor(files):
     return dg
 
 
-def fill_occupancy_dic(files,fname,threshold=0.07,divs=4,zero_correction=0):
+def fill_occupancy_dic(files,fname=None,threshold=0.07,divs=4,zero_correction=.13):
     totalevents = len(files)
-    printProgressBar(0, totalevents, prefix = 'Progress:', suffix = 'Complete', length = 50)
     occupancy_arr = np.zeros((128,128))
     start_time = time.time()
     
@@ -251,9 +254,8 @@ def fill_occupancy_dic(files,fname,threshold=0.07,divs=4,zero_correction=0):
 
         data = ServeData(file,zero_correction=zero_correction)
         occupancy_arr_file = np.zeros((128,128))
-        printProgressBar(iterations + 1, totalevents, prefix = 'Progress:', suffix = 'Complete', length = 50)
         for col in data.columns:
-            col_data = data[col]         
+            col_data = data[col]
             
             data_with_index = col_data.reset_index().to_numpy()
             data_points = data_with_index[:,1].reshape(-1, 1)
@@ -263,10 +265,9 @@ def fill_occupancy_dic(files,fname,threshold=0.07,divs=4,zero_correction=0):
             cluster_labels = cluster_labels.to_numpy()
             indexes_per_cluster = {i: [] for i in range(len(labels))}
             avgCharge_per_cluster = {}
-
-            # Iterate through data points and store indexes for each cluster
-            i=0
             
+
+            i=0
             for idx, label in zip(data_points[:, 0], cluster_labels):
                 i+=1
                 if np.isnan(label):
@@ -286,28 +287,21 @@ def fill_occupancy_dic(files,fname,threshold=0.07,divs=4,zero_correction=0):
                 continue
 
             stripx,stripy = strip_finding(cluster_process)
-            
-
             if stripx<0 or stripy<0:
                 continue
                 
             occupancy_arr_file[stripx,stripy-128] =occupancy_arr_file[stripx,stripy-128]+ 1
 
         occupancy_arr =np.dstack([occupancy_arr, occupancy_arr_file])
-
-
-    # dumpOccupancyData(occupancy_arr,fname)
     end_time = time.time()
-    
-    elapsed_time = end_time - start_time
+    # dumpOccupancyData(occupancy_arr,fname)
+    # elapsed_time = end_time - start_time
+    return np.sum(occupancy_arr,axis=2)
 
-    print(f"Elapsed time: {elapsed_time} in seconds.")
-    return occupancy_arr,elapsed_time
-
-def analysis6mzip(function=core_analyser, files = None, n_cores = 4):
+def analysis6mzip(function=fill_occupancy_dic, files = None, n_cores = 4):
     if files is None:
-        files = glob.glob("*.zip")    
-    filelist = batched(files,n_cores)    
+        files = glob.glob("*.zip")
+    filelist = batched(files,n_cores)
     dataGrid = np.zeros((128,128))
     with ProcessPoolExecutor() as Executor:
         results = Executor.map(function, filelist)
@@ -318,5 +312,5 @@ def analysis6mzip(function=core_analyser, files = None, n_cores = 4):
 
 
 if __name__ == "__main__":
-    dataGrid = analysis6mzip() 
+    dataGrid = analysis6mzip()
     np.save(f'result', dataGrid)

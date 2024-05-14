@@ -4,7 +4,7 @@ import customtkinter as ctk
 from customtkinter import filedialog, CTkFrame
 from tkinter import messagebox
 import numpy as np
-from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, core_analyser,image_reconstructor
+from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, core_analyser,image_reconstructor,fill_occupancy_dic
 import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -334,7 +334,7 @@ class ImageReconstructionFrame(CTkFrame):
             n_cores = 4
         else:
             n_cores = self.processes['user_set']
-        self.hits_data = analysis6mzip(image_reconstructor, files=list(self.data_files_list.values()),n_cores = n_cores)
+        self.hits_data = analysis6mzip(fill_occupancy_dic, files=list(self.data_files_list.values()),n_cores = n_cores)
         #print(self.hits_data)
         self.plot_hitmap(self.hits_data)
         
