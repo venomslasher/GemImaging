@@ -1,5 +1,7 @@
-
+#saved datafiles from numpy/pandas
 *.csv
+*.npy
+*.npz
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

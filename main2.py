@@ -1,10 +1,11 @@
 import os
 import glob
+from functools import partial
 import customtkinter as ctk
 from customtkinter import filedialog, CTkFrame
 from tkinter import messagebox
 import numpy as np
-from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, core_analyser,image_reconstructor,fill_occupancy_dic
+from analysis6mzip import unzipper , analysis6mzip,MAX_CHARGE, fill_occupancy_dic
 import pandas as pd
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -280,6 +281,7 @@ class PeakView(CTkFrame):
 class ImageReconstructionFrame(CTkFrame):
     def __init__(self, master,  **kwargs):
         super().__init__(master, **kwargs)
+        self.params = {}
         self.batchsize = None
         self.processes ={'default':4,'user_set':None}
         self.hmap = None
@@ -292,6 +294,24 @@ class ImageReconstructionFrame(CTkFrame):
 
         self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
         self.buttonframe.grid(row=0,column = 3,sticky='nsew')
+
+        # self.max_charge_label = ctk.CTkLabel(master=self.buttonframe,text= "Max charge")
+        # self.max_charge_label.grid(row=0,column=0, padx=1,pady= 2)
+
+        # self.max_charge = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.125)
+        # self.max_charge.grid(row=0,column=1,columnspan=2, padx=1,pady= 2)
+
+        # self.height_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Height threshold: ")
+        # self.height_thresh_label.grid(row=2,column=0, padx=1,pady= 2)
+
+        # self.height_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.075)
+        # self.height_thresh.grid(row=0,column=1,columnspan=2, padx=1,pady= 2)
+
+        # self.width_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Peak Width threshold(max) :")
+        # self.width_thresh_label.grid(row=1,column=1, padx=1,pady= 2)
+
+        # self.width_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 8)
+        # self.width_thresh.grid(row=2,column=1,columnspan=2, padx=1,pady= 2)
 
         self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
         self.button_select.pack(expand=False,fill='both',padx=(100,100),pady=10)
@@ -308,11 +328,15 @@ class ImageReconstructionFrame(CTkFrame):
 
     def plot_hitmap(self,data):
         cind = np.arange(0,128)
-        dataf = pd.DataFrame(np.round((data.T)/10), columns=cind ,index=cind)
+        data[:,5] = 0
+        data[:,65] =0
+        data[65,:] = 0
+        data[5,:] =0
+        dataf = pd.DataFrame(data, columns=cind ,index=cind).T
         
         self.hmap = sns.heatmap(dataf).get_figure()
 
-        density_data = data.copy()
+        # density_data = data.copy()
         # plt.contourf(np.log(data))
         # data.to_csv('img_data.csv')        
         self.setplot(self.hmap)
