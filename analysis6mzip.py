@@ -1,10 +1,11 @@
 import glob
 import time
 from itertools import batched
+from functools import partial
 import pandas as pd
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from zipfile import ZipFile
+from zipfile import ZipFile, is_zipfile
 
 
 MAX_CHARGE= .125
@@ -32,6 +33,8 @@ def DataCleaner(data):
 
 
 def unzipper(input_zip):
+    # if not is_zipfile(input_zip):
+    #     return None
     input_zip=ZipFile(input_zip)
     data = []
     data_df = {}
@@ -57,6 +60,8 @@ def unzipper(input_zip):
 
 def ServeData(files,mean=0, rms=0,zero_correction=0):
     data = unzipper(files)
+    if data is None:
+        return None
     return zero_correction - data 
 
 def dumpOccupancyData(data,filename):
@@ -135,17 +140,15 @@ def fill_occupancy_dic(files,fname=None,threshold=0.07,divs=4,zero_correction=.1
     for iterations,file in enumerate(files):
 
         data = ServeData(file,zero_correction=zero_correction)
+        if data is None:
+            continue
         # occupancy_arr_file = np.zeros((128,128))
         for col in data.columns:
             col_data = data[col]
             
             data_with_index = col_data.reset_index().to_numpy()
-            # data_points = data_with_index[:,1].reshape(-1, 1)
-            
-            # cluster_labels,labels = clustering_algo(data_points.reshape(1,-1)[0],divs=divs)
             data_points = data_with_index[:,1]
-            cluster_labels,labels = clustering_algo(data_points,divs=divs)
-        
+            cluster_labels,labels = clustering_algo(data_points,divs=divs)        
             cluster_labels = cluster_labels.to_numpy()
             indexes_per_cluster = {i: [] for i in range(len(labels))}
             avgCharge_per_cluster = {}
@@ -175,7 +178,7 @@ def fill_occupancy_dic(files,fname=None,threshold=0.07,divs=4,zero_correction=.1
                 continue
                 
             # occupancy_arr_file[stripx,stripy-128] =occupancy_arr_file[stripx,stripy-128]+ 1
-            occupancy_arr[stripx,stripy-128] =occupancy_arr[stripx,stripy-128]+ 1
+            occupancy_arr[stripx-1:stripx+1,stripy-128-1:stripy-128+1] +=1#occupancy_arr[stripx,stripy-128]+ 1
 
         # occupancy_arr =np.dstack([occupancy_arr, occupancy_arr_file])
 
@@ -183,13 +186,14 @@ def fill_occupancy_dic(files,fname=None,threshold=0.07,divs=4,zero_correction=.1
 
     return occupancy_arr
 
-def analysis6mzip(function=fill_occupancy_dic, files = None, n_cores = 4):
+def analysis6mzip(function=fill_occupancy_dic, files = None, n_cores = 4, params = None):
     if files is None:
         files = glob.glob("*.zip")
+    analyse_function = partial(function,threshold=params['threshold'],divs=params['div'],zero_correction=params['max_charge'] )
     filelist = batched(files,n_cores)
     dataGrid = np.zeros((128,128))
     with ProcessPoolExecutor() as Executor:
-        results = Executor.map(function, filelist)
+        results = Executor.map(analyse_function, filelist)
     for result in results:
         dataGrid+= result
     return dataGrid

@@ -14,7 +14,7 @@ import matplotlib.ticker as ticker
 import matplotlib
 import seaborn as sns
 
-
+NCORES= int(os.environ['NUMBER_OF_PROCESSORS'])
 SIZE = (1000,600)
 matplotlib.use('TkAgg')
 
@@ -283,11 +283,11 @@ class ImageReconstructionFrame(CTkFrame):
         super().__init__(master, **kwargs)
         self.params = {}
         self.batchsize = None
-        self.processes ={'default':4,'user_set':None}
+        self.processes ={'default':4,'user_set':8}
         self.hmap = None
-        self.files_list = None
         self.directory = None
         self.hits_data = None
+        self.data_files_list= None
 
         self.plotframe = CTkFrame(master=self,width=2*SIZE[0]/3, height=SIZE[1])
         self.plotframe.grid(row=0,column = 0,columnspan =3,sticky='nsew')
@@ -295,36 +295,45 @@ class ImageReconstructionFrame(CTkFrame):
         self.buttonframe = CTkFrame(master=self,width  = SIZE[0]/3, height = SIZE[1])
         self.buttonframe.grid(row=0,column = 3,sticky='nsew')
 
-        # self.max_charge_label = ctk.CTkLabel(master=self.buttonframe,text= "Max charge")
-        # self.max_charge_label.grid(row=0,column=0, padx=1,pady= 2)
+        self.max_charge_label = ctk.CTkLabel(master=self.buttonframe,text= "Max charge")
+        self.max_charge_label.grid(row=0,column=0, padx=1,pady= 2)
 
-        # self.max_charge = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.125)
-        # self.max_charge.grid(row=0,column=1,columnspan=2, padx=1,pady= 2)
+        self.max_charge = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.125)
+        self.max_charge.grid(row=0,column=1,columnspan=1, padx=1,pady= 2)
 
-        # self.height_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Height threshold: ")
-        # self.height_thresh_label.grid(row=2,column=0, padx=1,pady= 2)
+        self.div_label = ctk.CTkLabel(master=self.buttonframe,text= "No. of divs: ")
+        self.div_label.grid(row=1,column=0, padx=1,pady= 2)
 
-        # self.height_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 0.075)
-        # self.height_thresh.grid(row=0,column=1,columnspan=2, padx=1,pady= 2)
+        self.div_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 4)
+        self.div_thresh.grid(row=1,column=1,columnspan=1, padx=1,pady= 2)
 
-        # self.width_thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "Peak Width threshold(max) :")
-        # self.width_thresh_label.grid(row=1,column=1, padx=1,pady= 2)
+        self.thresh_label = ctk.CTkLabel(master=self.buttonframe,text= "threshold :")
+        self.thresh_label.grid(row=2,column=0, padx=1,pady= 2)
 
-        # self.width_thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= 8)
-        # self.width_thresh.grid(row=2,column=1,columnspan=2, padx=1,pady= 2)
+        self.thresh = ctk.CTkEntry(master=self.buttonframe, placeholder_text= .07)
+        self.thresh.grid(row=2,column=1,columnspan=1, padx=1,pady= 2)
+
+        self.button_apply = ctk.CTkButton(master=self.buttonframe, text='apply',command=self.applyparams)
+        self.button_apply.grid(row=3,column=0,columnspan=2, padx=1,pady= 2)
 
         self.button_select = ctk.CTkButton(master=self.buttonframe, text='open folder',command=self.getfiles)
-        self.button_select.pack(expand=False,fill='both',padx=(100,100),pady=10)
+        self.button_select.grid(row=4,column=0,columnspan=2, padx=1,pady= 2)
+
+        self.button_start = ctk.CTkButton(master=self.buttonframe, text='Start',command=self.analyse)
+        self.button_start.grid(row=5,column=0,columnspan=1, padx=1,pady= 2)
+
+        self.button_stop = ctk.CTkButton(master=self.buttonframe, text='Stop',command=self.analyse)
+        self.button_stop.grid(row=5,column=1,columnspan=1, padx=1,pady= 2)
 
         self.button_save = ctk.CTkButton(master=self.buttonframe, text='savefig',command=self.savefig)
-        self.button_save.pack(expand=False,fill='both',padx=(100,100),pady=50)
+        self.button_save.grid(row=6,column=0,columnspan=2, padx=1,pady= 2)
 
     def getfiles(self):
         self.directory = filedialog.askdirectory()
         if len(self.directory) == 0:
             return
         self.data_files_list= {i:k for i,k in enumerate(glob.glob(os.path.join(self.directory,'*.zip')))}
-        self.analyse()
+        # self.analyse()
 
     def plot_hitmap(self,data):
         cind = np.arange(0,128)
@@ -338,7 +347,7 @@ class ImageReconstructionFrame(CTkFrame):
 
         # density_data = data.copy()
         # plt.contourf(np.log(data))
-        # data.to_csv('img_data.csv')        
+        # data.to_csv('img_data.csv')
         self.setplot(self.hmap)
 
 
@@ -348,17 +357,24 @@ class ImageReconstructionFrame(CTkFrame):
                 wids.destroy()
         canvas = FigureCanvasTkAgg(fig, master=self.plotframe)
         canvas_widget = canvas.get_tk_widget()
-        canvas_widget.grid(row=0,column=0)    	
+        canvas_widget.grid(row=0,column=0)
         toolbar = NavigationToolbar2Tk(canvas, self.plotframe, pack_toolbar=False)
         toolbar.update()
         toolbar.grid(row = 1,column= 0,sticky='ew')
     
     def analyse(self):
+
+        params = {
+            'threshold':float(self.thresh.get() or .07),
+            'div': int(self.div_thresh.get() or 4),
+            'max_charge': float(self.max_charge.get() or .125)
+        }
         if self.processes['user_set'] is None:
-            n_cores = 4
+            n_cores = NCORES
         else:
             n_cores = self.processes['user_set']
-        self.hits_data = analysis6mzip(fill_occupancy_dic, files=list(self.data_files_list.values()),n_cores = n_cores)
+        print(params)
+        self.hits_data = analysis6mzip(fill_occupancy_dic, files=list(self.data_files_list.values()),n_cores = n_cores, params=params)
         #print(self.hits_data)
         self.plot_hitmap(self.hits_data)
         
@@ -368,6 +384,14 @@ class ImageReconstructionFrame(CTkFrame):
             return
         
         self.hmap.savefig(os.path.join(loca,'recon_image.jpg'),dpi=900)
+    
+    def applyparams(self):
+        # print(self.data_files_list)
+        if self.data_files_list is not None:
+            self.analyse()
+        else:
+            self.getfiles()
+
     
     
 
